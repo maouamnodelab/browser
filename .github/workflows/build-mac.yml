@@ -7,35 +7,33 @@ on:
 
 jobs:
   build-mac:
-    runs-on: macos-latest
     strategy:
       matrix:
-        # Menentukan arsitektur: x64 untuk Intel, arm64 untuk Apple Silicon
-        arch: [x64, arm64]
+        include:
+          - arch: x64
+            os: macos-13
+          - arch: arm64
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build renderer (Vite)
-        run: npm run build
+      - run: npm ci
+      - run: npm run build
 
       - name: Build Electron app
-        run: npm run dist -- --${{ matrix.arch }}
+        run: npm run dist -- --mac --${{ matrix.arch }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: lumen-browser-mac-${{ matrix.arch }}
-          path: release/*.dmg
+          path: |
+            release/*.dmg
+            release/*.zip
