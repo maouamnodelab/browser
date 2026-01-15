@@ -7,38 +7,34 @@ on:
 
 jobs:
   build-mac:
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     strategy:
-      fail-fast: false
       matrix:
-        include:
-          - arch: x64
-            os: macos-15
-          - arch: arm64
-            os: macos-latest
+        arch: [x64, arm64]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: 'npm'
 
-      - run: npm ci
-      - run: npm run build
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build renderer (Vite)
+        run: npm run build
 
       - name: Build Electron app
-        run: npm run dist -- --mac --${{ matrix.arch }}
+        run: npx electron-builder --mac --${{ matrix.arch }}
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
         with:
           name: lumen-browser-mac-${{ matrix.arch }}
-          path: |
-            release/*.dmg
-            release/*.zip
-            dist/*.dmg
-            dist/*.zip
-          if-no-files-found: warn
+          path: release/*.dmg
