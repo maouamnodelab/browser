@@ -7,96 +7,33 @@ on:
 
 jobs:
   build-mac:
-    name: macOS (${{ matrix.arch }}) on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-
     strategy:
-      fail-fast: false
       matrix:
         include:
-          # x64 build (cross-build on Apple Silicon runner, but forced to x64)
           - arch: x64
-            os: macos-15
-
-          # arm64 build (native on Apple Silicon runner)
+            os: macos-14
           - arch: arm64
             os: macos-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
+      - run: npm run build
 
-      - name: Build renderer (Vite)
-        run: npm run build
-
-      # Build Electron app (electron-builder / your dist script)
-      # IMPORTANT: force platform + arch explicitly
       - name: Build Electron app
         run: npm run dist -- --mac --${{ matrix.arch }}
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      # Verify the architecture of produced .app (best-effort; paths can differ by project)
-      - name: Verify app architecture (best-effort)
-        shell: bash
-        run: |
-          set -e
-
-          echo "== List release directory =="
-          ls -la release || true
-
-          echo "== Try find .app under common output folders =="
-          APP_PATH=""
-          for p in \
-            "release" \
-            "dist" \
-            "out" \
-            "." \
-          ; do
-            found=$(find "$p" -maxdepth 4 -name "*.app" -type d 2>/dev/null | head -n 1 || true)
-            if [ -n "$found" ]; then
-              APP_PATH="$found"
-              break
-            fi
-          done
-
-          if [ -z "$APP_PATH" ]; then
-            echo "WARN: .app not found. Skipping arch verification."
-            exit 0
-          fi
-
-          echo "Found app: $APP_PATH"
-          APP_NAME=$(basename "$APP_PATH" .app)
-          BIN="$APP_PATH/Contents/MacOS/$APP_NAME"
-
-          if [ ! -f "$BIN" ]; then
-            echo "WARN: Binary not found at: $BIN"
-            echo "Listing Contents/MacOS:"
-            ls -la "$APP_PATH/Contents/MacOS" || true
-            exit 0
-          fi
-
-          echo "== file =="
-          file "$BIN" || true
-          echo "== lipo -info =="
-          lipo -info "$BIN" || true
-
-      - name: Upload macOS artifacts (.dmg/.zip)
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: lumen-browser-mac-${{ matrix.arch }}
           path: |
             release/*.dmg
             release/*.zip
-            dist/*.dmg
-            dist/*.zip
-          if-no-files-found: warn
